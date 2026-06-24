@@ -47,6 +47,11 @@ SedHydro/
 │
 ├── outputs/
 ├── settings/
+│   ├── Coeffs.csv
+│   ├── Geology-class.csv
+│   ├── Landcover_classes.csv
+│   ├── depression_*.csv
+│   └── sediment_size_class.csv
 ├── shapefiles/
 ├── attributes/
 └── data/
