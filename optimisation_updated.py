@@ -597,13 +597,13 @@ def calculate_grid_ssc(
     rain2["time"] = pd.to_datetime(rain2["time"]).dt.round("h")
 
     erain = 10.0 * rain2.loc[
-        rain2["pptrate"] > 0, "pptrate" #"pptrate  "precipitation_flux"
+        rain2["precipitation_flux"] > 0, "precipitation_flux" #"pptrate  "precipitation_flux"
     ].min()
 
     rain_wide = rain2.pivot_table(
         index="hruId",
         columns="time",
-        values="pptrate", #"pptrate" "precipitation_flux"
+        values="precipitation_flux", #"pptrate" "precipitation_flux"
         aggfunc="first"
     )
 
@@ -8441,5 +8441,896 @@ def save_optimisation_results3_full(
     print(f"Saved SSC_river_tot_out CSV: {ssc_river_tot_csv_file}")
     print(f"Saved SSC_river_tot_out PKL: {ssc_river_tot_pkl_file}")
     print(f"Saved SSC_river_frac_out PKL: {ssc_river_frac_pkl_file}")
+
+
+def save_validation_results3_basic(
+    param_dict,
+    model_input,
+    df_runoff,
+    rain,
+    df_SSC_obs,
+    sand_hru_stat,
+    silt_hru_stat,
+    river_gdf,
+    sediment_size,
+    toml_file,
+    h,
+    q,
+    Q,
+    width,
+    output_dir,
+    file_name="validation3",
+    obs_time_col="time",
+    obs_value_col="SSC",
+    zero_landcover_class0=False,
+    number_fractions=3,
+    df_swe=None,
+    cold_region=True,
+    use_storage=False,
+    river_storage=None,
+    storage_data_type="length"
+):
+    """
+    Run ErosionModel3 validation using fixed parameter values and save only:
+
+    1. {file_name}_SSC_river_frac_outlet.csv
+    2. {file_name}_obs_sim.csv
+    3. {file_name}_SSC_river_frac_out_0.csv
+    4. {file_name}_SSC_river_frac_out_1.csv
+    5. {file_name}_SSC_river_frac_out_2.csv
+
+    No grid-level, HRU-level, NetCDF, pickle, parameter-summary,
+    or total-river-output files are saved.
+    """
+
+    import os
+    import numpy as np
+    import pandas as pd
+
+    from utils import fill_missing_hru
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # =====================================================
+    # FILE PATHS
+    # =====================================================
+    obs_sim_csv_file = os.path.join(
+        output_dir,
+        f"{file_name}_obs_sim.csv"
+    )
+
+    outlet_frac_csv_file = os.path.join(
+        output_dir,
+        f"{file_name}_SSC_river_frac_outlet.csv"
+    )
+
+    # =====================================================
+    # 1) FINAL EROSION MODEL GRID OUTPUT
+    #    This output is calculated but is not saved.
+    # =====================================================
+    model_sed_final = build_model_sed_from_params(
+        param_dict,
+        model_input
+    )
+
+    df_runoff_a, rain_a, common_times = align_forcing_data(
+        df_runoff,
+        rain
+    )
+
+    model_sed_final, time_cols = add_time_columns_to_model(
+        model_sed_final,
+        common_times
+    )
+
+    model_sed_final = calculate_grid_ssc(
+        model_sed_final,
+        df_runoff_a,
+        rain_a,
+        time_cols,
+        df_swe=df_swe,
+        cold_region=cold_region,
+        zero_landcover_class0=zero_landcover_class0
+    )
+
+    # =====================================================
+    # 2) HRU SSC OUTPUT
+    #    This output is calculated but is not saved.
+    # =====================================================
+    SSC_hru_unrouted = compute_hru_ssc_from_grids_pergridrunoff(
+        model_sed=model_sed_final,
+        df_runoff=df_runoff_a,
+        grid_hru_col="HRU_ID",
+        runoff_hru_col="hruId",
+        runoff_col="averageRoutedRunoff",
+        return_wide=True
+    )
+
+    a_rout = param_dict["a_rout"]["value"]
+    mt_rout = param_dict["mt_rout"]["value"]
+    K_rout = param_dict["K_rout"]["value"]
+
+    SSC_hru = route_ssc_hru_gamma(
+        SSC_hru=SSC_hru_unrouted,
+        a=a_rout,
+        mt=mt_rout,
+        K=K_rout,
+        hru_col="HRU_ID"
+    )
+
+    # =====================================================
+    # 3) HRU SSC FRACTIONS
+    #    These outputs are calculated but are not saved.
+    # =====================================================
+    SSC_hru_frac = create_ssc_hru_fraction_dict(
+        SSC_hru=SSC_hru,
+        sand_hru_stat=sand_hru_stat,
+        silt_hru_stat=silt_hru_stat,
+        hru_col="HRU_ID",
+        sand_col="mean_sand",
+        silt_col="mean_silt",
+        number_fractions=number_fractions
+    )
+
+    SSC_hru_frac = {
+        frac_id: frac_df.set_index("HRU_ID")
+        for frac_id, frac_df in SSC_hru_frac.items()
+    }
+
+    # =====================================================
+    # 4) ALIGN SSC AND HYDRAULIC TIMES
+    # =====================================================
+    h_times = pd.DatetimeIndex(h.index).sort_values()
+
+    common_routing_times = h_times.copy()
+
+    common_routing_times = common_routing_times.intersection(
+        pd.DatetimeIndex(q.index)
+    )
+
+    common_routing_times = common_routing_times.intersection(
+        pd.DatetimeIndex(Q.index)
+    )
+
+    common_routing_times = common_routing_times.intersection(
+        pd.DatetimeIndex(width.index)
+    )
+
+    for frac_id, frac_df in SSC_hru_frac.items():
+
+        ssc_times = pd.to_datetime(
+            frac_df.columns,
+            format="t_%Y%m%d_%H%M%S"
+        ).sort_values()
+
+        common_routing_times = common_routing_times.intersection(
+            ssc_times
+        )
+
+    common_routing_times = common_routing_times.sort_values()
+
+    if len(common_routing_times) == 0:
+        raise ValueError(
+            "No common timestamps were found between SSC_hru_frac "
+            "and the TempSedRout hydraulic inputs."
+        )
+
+    h = h.loc[common_routing_times].copy()
+    q = q.loc[common_routing_times].copy()
+    Q = Q.loc[common_routing_times].copy()
+    width = width.loc[common_routing_times].copy()
+
+    SSC_hru_frac_common = {}
+
+    for frac_id, frac_df in SSC_hru_frac.items():
+
+        col_time_map = {
+            pd.to_datetime(
+                col,
+                format="t_%Y%m%d_%H%M%S"
+            ): col
+            for col in frac_df.columns
+        }
+
+        keep_cols = [
+            col_time_map[time_value]
+            for time_value in common_routing_times
+            if time_value in col_time_map
+        ]
+
+        SSC_hru_frac_common[frac_id] = (
+            frac_df.loc[:, keep_cols].copy()
+        )
+
+    SSC_hru_frac = SSC_hru_frac_common
+
+    # =====================================================
+    # 5) ADD MISSING HRUs/REACHES
+    # =====================================================
+    SSC_hru_frac = fill_missing_hru(
+        SSC_hru_frac,
+        river_gdf,
+        id_col="LINKNO"
+    )
+
+    # =====================================================
+    # 6) RUN TEMPSSEDROUT
+    # =====================================================
+    SSC_river_frac_out, SSC_river_tot_out = run_final_tempsedrout(
+        param_dict=param_dict,
+        river_gdf=river_gdf,
+        sediment_size=sediment_size,
+        toml_file=toml_file,
+        h=h,
+        q=q,
+        Q=Q,
+        width=width,
+        SSC_hru_frac=SSC_hru_frac,
+        use_storage=use_storage,
+        river_storage=river_storage,
+        storage_data_type=storage_data_type
+    )
+
+    if not isinstance(SSC_river_frac_out, dict):
+        raise TypeError(
+            "SSC_river_frac_out must be a dictionary of pandas DataFrames."
+        )
+
+    # =====================================================
+    # 7) SAVE THE THREE FULL RIVER FRACTION OUTPUTS
+    # =====================================================
+    expected_fraction_keys = list(range(number_fractions))
+
+    for frac_id in expected_fraction_keys:
+
+        if frac_id not in SSC_river_frac_out:
+            raise KeyError(
+                f"Fraction {frac_id} is missing from SSC_river_frac_out."
+            )
+
+        frac_df = SSC_river_frac_out[frac_id]
+
+        if not isinstance(frac_df, pd.DataFrame):
+            raise TypeError(
+                f"SSC_river_frac_out[{frac_id}] must be a pandas DataFrame."
+            )
+
+        frac_csv_file = os.path.join(
+            output_dir,
+            f"{file_name}_SSC_river_frac_out_{frac_id}.csv"
+        )
+
+        frac_df.to_csv(
+            frac_csv_file,
+            index=True,
+            index_label="time"
+        )
+
+        print(f"Saved river fraction {frac_id}: {frac_csv_file}")
+
+    # =====================================================
+    # 8) FIND OUTLET REACH
+    # =====================================================
+    downstream_ids = set(
+        river_gdf["DSLINKNO"].dropna()
+    )
+
+    link_ids = set(
+        river_gdf["LINKNO"].dropna()
+    )
+
+    outlet_rows = river_gdf.loc[
+        river_gdf["DSLINKNO"].isin(
+            downstream_ids - link_ids
+        ),
+        "LINKNO"
+    ]
+
+    if outlet_rows.empty:
+        raise ValueError(
+            "Could not identify the outlet reach from LINKNO and DSLINKNO."
+        )
+
+    reach_out_id = outlet_rows.iat[0]
+
+    # Account for possible integer/string differences in column names.
+    first_frac_df = SSC_river_frac_out[expected_fraction_keys[0]]
+
+    if reach_out_id not in first_frac_df.columns:
+        reach_out_id_str = str(reach_out_id)
+
+        if reach_out_id_str in first_frac_df.columns:
+            reach_out_id = reach_out_id_str
+        else:
+            raise KeyError(
+                f"Outlet reach {reach_out_id} is not present in "
+                "SSC_river_frac_out columns."
+            )
+
+    # =====================================================
+    # 9) SAVE OUTLET SSC FOR EACH FRACTION
+    # =====================================================
+    SSC_river_frac_outlet = pd.DataFrame({
+        f"frac_{frac_id}": SSC_river_frac_out[frac_id][reach_out_id]
+        for frac_id in expected_fraction_keys
+    })
+
+    SSC_river_frac_outlet.index = pd.to_datetime(
+        SSC_river_frac_outlet.index
+    )
+
+    SSC_river_frac_outlet.index.name = "time"
+
+    SSC_river_frac_outlet.to_csv(
+        outlet_frac_csv_file,
+        index=True
+    )
+
+    print(
+        "Saved outlet fraction SSC:",
+        outlet_frac_csv_file
+    )
+
+    # =====================================================
+    # 10) OBSERVED VS SIMULATED OUTLET SSC
+    # =====================================================
+    obs, sim = prepare_obs_sim_series_tempsedrout(
+        param_dict=param_dict,
+        river_gdf=river_gdf,
+        sediment_size=sediment_size,
+        toml_file=toml_file,
+        h=h,
+        q=q,
+        Q=Q,
+        width=width,
+        SSC_hru_frac=SSC_hru_frac,
+        df_SSC_obs=df_SSC_obs,
+        obs_time_col=obs_time_col,
+        obs_value_col=obs_value_col,
+        use_storage=use_storage,
+        river_storage=river_storage,
+        storage_data_type=storage_data_type
+    )
+
+    if obs is None or sim is None:
+        raise ValueError(
+            "Observed and simulated outlet SSC series could not be prepared."
+        )
+
+    obs_values = np.asarray(obs, dtype=float)
+    sim_values = np.asarray(sim, dtype=float)
+
+    if len(obs_values) != len(sim_values):
+        raise ValueError(
+            "Observed and simulated SSC series have different lengths: "
+            f"{len(obs_values)} and {len(sim_values)}."
+        )
+
+    obs_sim_df = pd.DataFrame({
+        "SSC_obs": obs_values,
+        "SSC_sim": sim_values
+    })
+
+    obs_sim_df.to_csv(
+        obs_sim_csv_file,
+        index=False
+    )
+
+    print(f"Saved observed vs simulated SSC: {obs_sim_csv_file}")
+
+    # =====================================================
+    # 11) RETURN RESULTS WITHOUT SAVING EXTRA FILES
+    # =====================================================
+    return {
+        "reach_out_id": reach_out_id,
+        "obs_sim_df": obs_sim_df,
+        "SSC_river_frac_outlet": SSC_river_frac_outlet,
+        "SSC_river_frac_out": SSC_river_frac_out,
+        "SSC_river_tot_out": SSC_river_tot_out
+    }
+
+def save_validation_results3_full(
+    param_dict,
+    model_input,
+    df_runoff,
+    rain,
+    cat_hru,
+    df_SSC_obs,
+    sand_hru_stat,
+    silt_hru_stat,
+    river_gdf,
+    sediment_size,
+    toml_file,
+    h,
+    q,
+    Q,
+    width,
+    output_dir,
+    file_name="validation3",
+    model_sed_pkl_name=None,
+    obs_time_col="time",
+    obs_value_col="SSC",
+    zero_landcover_class0=False,
+    number_fractions=3,
+    df_swe=None,
+    cold_region=True,
+    use_storage=False,
+    river_storage=None,
+    storage_data_type="length",
+    objective="log_rmse"
+):
+    """
+    Save full ErosionModel3 validation results using fixed parameter values.
+
+    This is similar to save_optimisation_results3_full, but it does not require:
+    - best_score
+    - pop
+    - logbook
+    - hof
+    - generation_history
+    - population_history
+    """
+
+    import os
+    import pickle
+    import numpy as np
+    import pandas as pd
+    from netCDF4 import Dataset
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # =====================================================
+    # FILE PATHS
+    # =====================================================
+    main_csv_file = os.path.join(output_dir, f"{file_name}_main.csv")
+    main_pkl_file = os.path.join(output_dir, f"{file_name}_main.pkl")
+
+    if model_sed_pkl_name is None:
+        model_sed_pkl_file = os.path.join(output_dir, f"{file_name}_model_sed_final.pkl")
+    else:
+        model_sed_pkl_file = os.path.join(output_dir, model_sed_pkl_name)
+
+    model_sed_csv_file = os.path.join(output_dir, f"{file_name}_model_sed_final.csv")
+    model_sed_nc_file = os.path.join(output_dir, f"{file_name}_model_sed_final_raster.nc")
+
+    ssc_hru_pkl_file = os.path.join(output_dir, f"{file_name}_SSC_hru.pkl")
+    ssc_hru_csv_file = os.path.join(output_dir, f"{file_name}_SSC_hru.csv")
+
+    ssc_hru_frac_pkl_file = os.path.join(output_dir, f"{file_name}_SSC_hru_frac.pkl")
+
+    ssc_river_tot_csv_file = os.path.join(output_dir, f"{file_name}_SSC_river_tot_out.csv")
+    ssc_river_tot_pkl_file = os.path.join(output_dir, f"{file_name}_SSC_river_tot_out.pkl")
+
+    ssc_river_frac_pkl_file = os.path.join(output_dir, f"{file_name}_SSC_river_frac_out.pkl")
+
+    obs_sim_csv_file = os.path.join(output_dir, f"{file_name}_obs_sim.csv")
+    obs_sim_pkl_file = os.path.join(output_dir, f"{file_name}_obs_sim.pkl")
+
+    outlet_frac_csv_file = os.path.join(output_dir, f"{file_name}_SSC_river_frac_outlet.csv")
+    outlet_frac_pkl_file = os.path.join(output_dir, f"{file_name}_SSC_river_frac_outlet.pkl")
+
+    # =====================================================
+    # SMALL HELPER: SAVE GRID SSC AS RASTER-STYLE NETCDF
+    # =====================================================
+    def save_model_sed_to_raster_netcdf(model_sed_df, time_cols_in, output_nc):
+
+        required_cols = ["row", "col"]
+        missing_cols = [c for c in required_cols if c not in model_sed_df.columns]
+
+        if missing_cols:
+            raise ValueError(
+                f"model_sed_df must contain columns {required_cols}. Missing: {missing_cols}"
+            )
+
+        time_values = pd.to_datetime(
+            [c.replace("t_", "") for c in time_cols_in],
+            format="%Y%m%d_%H%M%S"
+        )
+
+        n_time = len(time_values)
+
+        row_vals = model_sed_df["row"].to_numpy(dtype=int)
+        col_vals = model_sed_df["col"].to_numpy(dtype=int)
+
+        row_min = int(np.min(row_vals))
+        row_max = int(np.max(row_vals))
+        col_min = int(np.min(col_vals))
+        col_max = int(np.max(col_vals))
+
+        n_y = row_max - row_min + 1
+        n_x = col_max - col_min + 1
+
+        row_idx = row_vals - row_min
+        col_idx = col_vals - col_min
+
+        ssc_cube = np.full((n_time, n_y, n_x), np.nan, dtype=np.float32)
+        ssc_values = model_sed_df[time_cols_in].to_numpy(dtype=np.float32)
+
+        for i in range(len(model_sed_df)):
+            ssc_cube[:, row_idx[i], col_idx[i]] = ssc_values[i, :]
+
+        with Dataset(output_nc, "w", format="NETCDF4") as ds:
+            ds.createDimension("time", n_time)
+            ds.createDimension("y", n_y)
+            ds.createDimension("x", n_x)
+
+            time_var = ds.createVariable("time", str, ("time",))
+            y_var = ds.createVariable("y", "i4", ("y",))
+            x_var = ds.createVariable("x", "i4", ("x",))
+
+            ssc_var = ds.createVariable(
+                "SSC_grid",
+                "f4",
+                ("time", "y", "x"),
+                zlib=True,
+                complevel=4,
+                fill_value=np.float32(np.nan)
+            )
+
+            time_var[:] = np.array(
+                [t.strftime("%Y-%m-%d %H:%M:%S") for t in time_values],
+                dtype=object
+            )
+
+            y_var[:] = np.arange(row_min, row_max + 1, dtype=np.int32)
+            x_var[:] = np.arange(col_min, col_max + 1, dtype=np.int32)
+
+            ssc_var[:, :, :] = ssc_cube
+            ssc_var.long_name = "Grid suspended sediment concentration"
+            ssc_var.units = "same_as_model_output"
+
+            if "grid_id" in model_sed_df.columns:
+                grid_id_2d = np.full((n_y, n_x), -9999, dtype=np.int32)
+                grid_ids = model_sed_df["grid_id"].to_numpy(dtype=np.int32)
+
+                for i in range(len(model_sed_df)):
+                    grid_id_2d[row_idx[i], col_idx[i]] = grid_ids[i]
+
+                grid_id_var = ds.createVariable(
+                    "grid_id",
+                    "i4",
+                    ("y", "x"),
+                    zlib=True,
+                    complevel=4,
+                    fill_value=-9999
+                )
+                grid_id_var[:, :] = grid_id_2d
+
+            if "HRU_ID" in model_sed_df.columns:
+                hru_id_2d = np.full((n_y, n_x), -9999, dtype=np.int32)
+                hru_ids = model_sed_df["HRU_ID"].to_numpy(dtype=np.int32)
+
+                for i in range(len(model_sed_df)):
+                    hru_id_2d[row_idx[i], col_idx[i]] = hru_ids[i]
+
+                hru_id_var = ds.createVariable(
+                    "HRU_ID",
+                    "i4",
+                    ("y", "x"),
+                    zlib=True,
+                    complevel=4,
+                    fill_value=-9999
+                )
+                hru_id_var[:, :] = hru_id_2d
+
+            ds.description = "Validation ErosionModel3 grid SSC as raster-style NetCDF"
+
+    # =====================================================
+    # 1) FINAL EROSION MODEL GRID OUTPUT
+    # =====================================================
+    model_sed_final = build_model_sed_from_params(
+        param_dict,
+        model_input
+    )
+
+    df_runoff_a, rain_a, common_times = align_forcing_data(df_runoff, rain)
+
+    model_sed_final, time_cols = add_time_columns_to_model(
+        model_sed_final,
+        common_times
+    )
+
+    model_sed_final = calculate_grid_ssc(
+        model_sed_final,
+        df_runoff_a,
+        rain_a,
+        time_cols,
+        df_swe=df_swe,
+        cold_region=cold_region,
+        zero_landcover_class0=zero_landcover_class0
+    )
+
+    model_sed_final.to_pickle(model_sed_pkl_file)
+    model_sed_final.to_csv(model_sed_csv_file, index=False)
+
+    save_model_sed_to_raster_netcdf(
+        model_sed_df=model_sed_final,
+        time_cols_in=time_cols,
+        output_nc=model_sed_nc_file
+    )
+
+    # =====================================================
+    # 2) HRU SSC OUTPUT
+    # =====================================================
+    SSC_hru_unrouted = compute_hru_ssc_from_grids_pergridrunoff(
+        model_sed=model_sed_final,
+        df_runoff=df_runoff,
+        grid_hru_col="HRU_ID",
+        runoff_hru_col="hruId",
+        runoff_col="averageRoutedRunoff",
+        return_wide=True
+    )
+
+    a_rout = param_dict["a_rout"]["value"]
+    mt_rout = param_dict["mt_rout"]["value"]
+    K_rout = param_dict["K_rout"]["value"]
+
+    SSC_hru = route_ssc_hru_gamma(
+        SSC_hru=SSC_hru_unrouted,
+        a=a_rout,
+        mt=mt_rout,
+        K=K_rout,
+        hru_col="HRU_ID"
+    )
+
+    SSC_hru.to_pickle(ssc_hru_pkl_file)
+    SSC_hru.to_csv(ssc_hru_csv_file, index=False)
+
+    # =====================================================
+    # 3) HRU SSC FRACTION OUTPUT
+    # =====================================================
+    SSC_hru_frac = create_ssc_hru_fraction_dict(
+        SSC_hru=SSC_hru,
+        sand_hru_stat=sand_hru_stat,
+        silt_hru_stat=silt_hru_stat,
+        hru_col="HRU_ID",
+        sand_col="mean_sand",
+        silt_col="mean_silt",
+        number_fractions=number_fractions
+    )
+
+    SSC_hru_frac = {
+        i: df.set_index("HRU_ID")
+        for i, df in SSC_hru_frac.items()
+    }
+
+    h_times = pd.DatetimeIndex(h.index).sort_values()
+    common_routing_times = h_times.copy()
+
+    for frac, df in SSC_hru_frac.items():
+        ssc_times = pd.to_datetime(
+            df.columns,
+            format="t_%Y%m%d_%H%M%S"
+        ).sort_values()
+
+        common_routing_times = common_routing_times.intersection(ssc_times)
+
+    h = h.loc[common_routing_times].copy()
+    q = q.loc[common_routing_times].copy()
+    Q = Q.loc[common_routing_times].copy()
+    width = width.loc[common_routing_times].copy()
+
+    SSC_hru_frac_common = {}
+
+    for frac, df in SSC_hru_frac.items():
+        col_time_map = {
+            pd.to_datetime(col, format="t_%Y%m%d_%H%M%S"): col
+            for col in df.columns
+        }
+
+        keep_cols = [
+            col_time_map[t]
+            for t in common_routing_times
+            if t in col_time_map
+        ]
+
+        SSC_hru_frac_common[frac] = df.loc[:, keep_cols].copy()
+
+    SSC_hru_frac = SSC_hru_frac_common
+
+    from utils import fill_missing_hru
+
+    SSC_hru_frac = fill_missing_hru(
+        SSC_hru_frac,
+        river_gdf,
+        id_col="LINKNO"
+    )
+
+    with open(ssc_hru_frac_pkl_file, "wb") as f:
+        pickle.dump(SSC_hru_frac, f)
+
+    for frac_id, frac_df in SSC_hru_frac.items():
+        frac_csv_file = os.path.join(
+            output_dir,
+            f"{file_name}_SSC_hru_frac_frac{frac_id}.csv"
+        )
+        frac_df.to_csv(frac_csv_file)
+
+    # =====================================================
+    # 4) FINAL TEMPSSEDROUT OUTPUT
+    # =====================================================
+    SSC_river_frac_out, SSC_river_tot_out = run_final_tempsedrout(
+        param_dict=param_dict,
+        river_gdf=river_gdf,
+        sediment_size=sediment_size,
+        toml_file=toml_file,
+        h=h,
+        q=q,
+        Q=Q,
+        width=width,
+        SSC_hru_frac=SSC_hru_frac,
+        use_storage=use_storage,
+        river_storage=river_storage,
+        storage_data_type=storage_data_type
+    )
+
+    if isinstance(SSC_river_tot_out, pd.DataFrame):
+        SSC_river_tot_out.to_csv(ssc_river_tot_csv_file, index=True)
+        with open(ssc_river_tot_pkl_file, "wb") as f:
+            pickle.dump(SSC_river_tot_out, f)
+
+    with open(ssc_river_frac_pkl_file, "wb") as f:
+        pickle.dump(SSC_river_frac_out, f)
+
+    if isinstance(SSC_river_frac_out, dict):
+        for frac_name, frac_obj in SSC_river_frac_out.items():
+            frac_safe = str(frac_name).replace(" ", "_").replace("/", "_")
+
+            frac_csv_file = os.path.join(
+                output_dir,
+                f"{file_name}_SSC_river_frac_out_{frac_safe}.csv"
+            )
+
+            frac_pkl_file = os.path.join(
+                output_dir,
+                f"{file_name}_SSC_river_frac_out_{frac_safe}.pkl"
+            )
+
+            if isinstance(frac_obj, pd.DataFrame):
+                frac_obj.to_csv(frac_csv_file, index=True)
+
+            with open(frac_pkl_file, "wb") as f:
+                pickle.dump(frac_obj, f)
+
+    # =====================================================
+    # 4b) OUTLET FRACTION OUTPUT
+    # =====================================================
+    SSC_river_frac_outlet = None
+
+    try:
+        reach_out_id = river_gdf.loc[
+            river_gdf["DSLINKNO"].isin(
+                set(river_gdf["DSLINKNO"]) - set(river_gdf["LINKNO"])
+            ),
+            "LINKNO"
+        ].iat[0]
+
+        if isinstance(SSC_river_frac_out, dict):
+            SSC_river_frac_outlet = pd.DataFrame({
+                f"frac_{frac_key}": frac_df[reach_out_id]
+                for frac_key, frac_df in SSC_river_frac_out.items()
+                if isinstance(frac_df, pd.DataFrame) and reach_out_id in frac_df.columns
+            })
+
+            if not SSC_river_frac_outlet.empty:
+                SSC_river_frac_outlet.to_csv(outlet_frac_csv_file, index=True)
+                with open(outlet_frac_pkl_file, "wb") as f:
+                    pickle.dump(SSC_river_frac_outlet, f)
+
+    except Exception as e:
+        print(f"Warning: could not save outlet fraction SSC: {e}")
+
+    # =====================================================
+    # 5) OBSERVED VS SIMULATED OUTLET SSC
+    # =====================================================
+    obs, sim = prepare_obs_sim_series_tempsedrout(
+        param_dict=param_dict,
+        river_gdf=river_gdf,
+        sediment_size=sediment_size,
+        toml_file=toml_file,
+        h=h,
+        q=q,
+        Q=Q,
+        width=width,
+        SSC_hru_frac=SSC_hru_frac,
+        df_SSC_obs=df_SSC_obs,
+        obs_time_col=obs_time_col,
+        obs_value_col=obs_value_col,
+        use_storage=use_storage,
+        river_storage=river_storage,
+        storage_data_type=storage_data_type
+    )
+
+    if obs is None or sim is None:
+        obs_sim_df = None
+        validation_score = None
+    else:
+        obs_sim_df = pd.DataFrame({
+            "SSC_obs": obs,
+            "SSC_sim": sim
+        })
+
+        validation_score = objective_from_series(
+            obs,
+            sim,
+            objective=objective
+        )
+
+        obs_sim_df.to_csv(obs_sim_csv_file, index=False)
+
+        with open(obs_sim_pkl_file, "wb") as f:
+            pickle.dump(obs_sim_df, f)
+
+    # =====================================================
+    # 6) PARAMETERS
+    # =====================================================
+    param_rows = []
+
+    for k, v in param_dict.items():
+        param_rows.append({
+            "section": "parameters",
+            "name": k,
+            "value": v.get("value"),
+            "low": v.get("low"),
+            "up": v.get("up"),
+            "priority": v.get("priority")
+        })
+
+    df_params = pd.DataFrame(param_rows)
+
+    df_score = pd.DataFrame([{
+        "section": "validation_score",
+        "name": objective,
+        "value": validation_score
+    }])
+
+    df_all = pd.concat(
+        [df_params, df_score],
+        ignore_index=True,
+        sort=False
+    )
+
+    df_all.to_csv(main_csv_file, index=False)
+
+    with open(main_pkl_file, "wb") as f:
+        pickle.dump(
+            {
+                "param_dict": param_dict,
+                "validation_score": validation_score,
+                "objective": objective,
+                "obs_sim_df": obs_sim_df,
+                "model_sed_final": model_sed_final,
+                "SSC_hru": SSC_hru,
+                "SSC_hru_frac": SSC_hru_frac,
+                "SSC_river_frac_out": SSC_river_frac_out,
+                "SSC_river_tot_out": SSC_river_tot_out,
+                "SSC_river_frac_outlet": SSC_river_frac_outlet,
+            },
+            f
+        )
+
+    print(f"Saved validation main CSV: {main_csv_file}")
+    print(f"Saved validation main PKL: {main_pkl_file}")
+    print(f"Saved model_sed PKL: {model_sed_pkl_file}")
+    print(f"Saved model_sed CSV: {model_sed_csv_file}")
+    print(f"Saved model_sed raster NetCDF: {model_sed_nc_file}")
+    print(f"Saved SSC_hru PKL: {ssc_hru_pkl_file}")
+    print(f"Saved SSC_hru CSV: {ssc_hru_csv_file}")
+    print(f"Saved SSC_hru_frac PKL: {ssc_hru_frac_pkl_file}")
+    print(f"Saved SSC_river_tot_out CSV: {ssc_river_tot_csv_file}")
+    print(f"Saved SSC_river_tot_out PKL: {ssc_river_tot_pkl_file}")
+    print(f"Saved SSC_river_frac_out PKL: {ssc_river_frac_pkl_file}")
+
+    return {
+        "validation_score": validation_score,
+        "obs_sim_df": obs_sim_df,
+        "model_sed_final": model_sed_final,
+        "SSC_hru": SSC_hru,
+        "SSC_hru_frac": SSC_hru_frac,
+        "SSC_river_frac_out": SSC_river_frac_out,
+        "SSC_river_tot_out": SSC_river_tot_out,
+        "SSC_river_frac_outlet": SSC_river_frac_outlet,
+    }
+
 
 # end of optimisation_updated.py code

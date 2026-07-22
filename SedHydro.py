@@ -34,7 +34,12 @@ from netCDF4 import Dataset, num2date
 # CONFIG FILE
 # =====================================================
 
-toml_file = 'directory_settings_Athabasca_run3.toml'
+toml_file = "/Users/armanhaddadchi/Library/CloudStorage/OneDrive-UniversityofCalgary/ErosionModel/git_SedHydro/directory_settings_Notikenwin_validation.toml"
+
+# if len(sys.argv) > 1:
+#     toml_file = sys.argv[1]
+# else:
+#     toml_file = "directory_settings_Smoky_validation.toml"
 # =====================================================
 # SMALL HELPERS
 # =====================================================
@@ -49,7 +54,13 @@ def load_directory_settings(toml_name=toml_file):
 
 
 def get_os_suffix():
-    return "_win" if platform.system().lower().startswith("win") else "_mac"
+    system = platform.system().lower()
+    if system.startswith("win"):
+        return "_win"
+    elif system == "linux":
+        return "_linux"
+    else:
+        return "_mac"
 
 
 def cfg_list_or_none(section, key):
@@ -527,7 +538,7 @@ from utils import forcingnc_to_dict_by_hru
 
 rain = forcingnc_to_dataframe(
     directory=os.path.join(catchment_path,rainfall_directory),
-    var_name="pptrate", #"pptrate"
+    var_name="precipitation_flux",  # "pptrate" "precipitation_flux"
     time_name="time",
     hru_name="hruId",
     start_date=start_date,
@@ -538,7 +549,7 @@ rain = forcingnc_to_dataframe(
 
 rain_dict=forcingnc_to_dict_by_hru(
     os.path.join(catchment_path,rainfall_directory),
-    var_name="pptrate",
+    var_name="precipitation_flux",# "pptrate" "precipitation_flux"
     time_name="time",
     hru_name="hruId",
     start_date=start_date,
@@ -568,18 +579,18 @@ silt_array, silt_shape, nodata, silt_transform, silt_crs, silt_profile=raster_cu
 
 
 #%% map land cover, geology, soil texture and DEM
-from mapMaker import make_map_classes
-make_map_classes (landcover_array,np.nan , 'Original landcover classes')
-make_map_classes (landcover_erod,np.nan , 'Erodibility landcover classes')
-from mapMaker import make_map_continuous
+# from mapMaker import make_map_classes
+# make_map_classes (landcover_array,np.nan , 'Original landcover classes')
+# make_map_classes (landcover_erod,np.nan , 'Erodibility landcover classes')
+# from mapMaker import make_map_continuous
 
-make_map_continuous (dem_array, "Digital Elevation Model (DEM)","Elevation","terrain")
-make_map_continuous (slope_perc, "Slope from dem","Percent", "Spectral_r")
+# make_map_continuous (dem_array, "Digital Elevation Model (DEM)","Elevation","terrain")
+# make_map_continuous (slope_perc, "Slope from dem","Percent", "Spectral_r")
 
-make_map_classes (geol_array,np.nan , 'original geology classes')
-make_map_classes (geol_erod,np.nan , 'Erodibility geology classes')
-make_map_continuous (sand_array,'Sand', 'Top soil proportion (%)', "Spectral_r")
-make_map_continuous (silt_array,'Silt', 'Top soil proportion (%)', "Spectral_r")
+# make_map_classes (geol_array,np.nan , 'original geology classes')
+# make_map_classes (geol_erod,np.nan , 'Erodibility geology classes')
+# make_map_continuous (sand_array,'Sand', 'Top soil proportion (%)', "Spectral_r")
+# make_map_continuous (silt_array,'Silt', 'Top soil proportion (%)', "Spectral_r")
 
 #%% read catchment hru
 
@@ -747,34 +758,34 @@ else:
     df_swe["scalarSWE"] = 0.0
 
 #%% extract flow data from hydrology routing model (here mizuRoute)
-nc = Dataset(os.path.join(catchment_path,mizu_path))
+# nc = Dataset(os.path.join(catchment_path,mizu_path))
 
-# Dimensions (gives #timesteps, #layers, etc.)
-print("Dimensions:")
-for d in nc.dimensions:
-    print(f"  {d}: {len(nc.dimensions[d])}")
+# # Dimensions (gives #timesteps, #layers, etc.)
+# print("Dimensions:")
+# for d in nc.dimensions:
+#     print(f"  {d}: {len(nc.dimensions[d])}")
 
-# Variables
-print("\nVariables:")
-print(list(nc.variables.keys()))
+# # Variables
+# print("\nVariables:")
+# print(list(nc.variables.keys()))
 
-# Timeframe (common SUMMA: 'time')
-if "time" in nc.variables:
-    tvar = nc.variables["time"]
-    tvals = tvar[:]
-    units = getattr(tvar, "units", None)
-    cal = getattr(tvar, "calendar", "standard")
+# # Timeframe (common SUMMA: 'time')
+# if "time" in nc.variables:
+#     tvar = nc.variables["time"]
+#     tvals = tvar[:]
+#     units = getattr(tvar, "units", None)
+#     cal = getattr(tvar, "calendar", "standard")
 
-    print("\nTime:")
-    print("  n_timesteps:", len(tvals))
-    if units is not None:
-        dt = num2date(tvals, units=units, calendar=cal)
-        print("  start:", dt[0])
-        print("  end  :", dt[-1])
-    else:
-        print("  time units not found; showing raw:", tvals[:5])
+#     print("\nTime:")
+#     print("  n_timesteps:", len(tvals))
+#     if units is not None:
+#         dt = num2date(tvals, units=units, calendar=cal)
+#         print("  start:", dt[0])
+#         print("  end  :", dt[-1])
+#     else:
+#         print("  time units not found; showing raw:", tvals[:5])
 
-nc.close()
+# nc.close()
 
 #%% extract rivernetwork hydrological data
 from utils import extract_flow_variable_nc
@@ -985,7 +996,8 @@ if model_mode == "validation":
     from optimisation_updated import build_model_sed_from_params
     from optimisation_updated import add_time_columns_to_model
     from optimisation_updated import calculate_grid_ssc
-    from optimisation_updated import save_validation_results3_full
+    # from optimisation_updated import save_validation_results3_full
+    from optimisation_updated import save_validation_results3_basic
 
     from utils import compute_hru_ssc_from_grids_pergridrunoff
     from utils import route_ssc_hru_gamma
@@ -1107,13 +1119,12 @@ if model_mode == "validation":
         id_col="LINKNO"
     )
 
-    # save full validation/calibration-style outputs
-    validation_outputs3 = save_validation_results3_full(
+    # #save basic validation/calibration-style outputs
+    validation_outputs3 = save_validation_results3_basic(
         param_dict=param_dict,
         model_input=model_input,
         df_runoff=df_runoff,
         rain=rain,
-        cat_hru=cat_hru,
         df_SSC_obs=df_SSC_obs,
         sand_hru_stat=sand_hru_stat,
         silt_hru_stat=silt_hru_stat,
@@ -1126,7 +1137,6 @@ if model_mode == "validation":
         width=width,
         output_dir=output_dir,
         file_name=final_file_name3,
-        model_sed_pkl_name=final_model_sed_final_pkl,
         obs_time_col="time",
         obs_value_col="SSC",
         zero_landcover_class0=True,
@@ -1135,16 +1145,47 @@ if model_mode == "validation":
         cold_region=cold_region,
         use_storage=use_storage,
         river_storage=river_storage,
-        storage_data_type=storage_data_type,
-        objective="log_rmse"
+        storage_data_type=storage_data_type
     )
+
+    # save full validation/calibration-style outputs
+    # validation_outputs3 = save_validation_results3_full(
+    #     param_dict=param_dict,
+    #     model_input=model_input,
+    #     df_runoff=df_runoff,
+    #     rain=rain,
+    #     cat_hru=cat_hru,
+    #     df_SSC_obs=df_SSC_obs,
+    #     sand_hru_stat=sand_hru_stat,
+    #     silt_hru_stat=silt_hru_stat,
+    #     river_gdf=river_gdf,
+    #     sediment_size=sediment_size,
+    #     toml_file=routing_constants_toml,
+    #     h=h,
+    #     q=q,
+    #     Q=Q,
+    #     width=width,
+    #     output_dir=output_dir,
+    #     file_name=final_file_name3,
+    #     model_sed_pkl_name=final_model_sed_final_pkl,
+    #     obs_time_col="time",
+    #     obs_value_col="SSC",
+    #     zero_landcover_class0=True,
+    #     number_fractions=number_fractions,
+    #     df_swe=df_swe,
+    #     cold_region=cold_region,
+    #     use_storage=use_storage,
+    #     river_storage=river_storage,
+    #     storage_data_type=storage_data_type,
+    #     objective="log_rmse"
+    # )
 
     print("Saved validation full results using file name:", final_file_name3)
 
 
 else:
 
-    #%% ======================
+    #% ======================
     #   Optimisation 3 - Combined ErosionModel + TempSedRout optimisation
     #   This optimises Erosion parameters and TempSedRout parameters together
     #   comparing final routed outlet SSC vs. df_SSC_obs
@@ -1316,7 +1357,7 @@ else:
         objective=objective3,
         cold_region=cold_region3,
         zero_landcover_class0=zero_landcover_class0,
-        optimize_routing_params=optimize_hill_routing_params,
+        optimize_hill_routing_params=optimize_hill_routing_params,
         optimise_only_erosion=optimise_only_erosion,
         optimise_only_routing=optimise_only_routing,
         number_fractions=number_fractions,
