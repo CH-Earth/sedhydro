@@ -45,10 +45,12 @@ model_mode = "calibration"
 # working directory
 working_directory_mac = "/path/to/SedHydro"
 working_directory_win = "C:/path/to/SedHydro"
+working_directory_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro"
 
 # main directory for hydrological model run
 main_directory_mac = "/path/to/hydrological_model_runs"
 main_directory_win = "C:/path/to/hydrological_model_runs"
+main_directory_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/hydrology"
 
 # folder name for running catchment
 catchment_folder = "swan_river"
@@ -56,11 +58,12 @@ catchment_folder = "swan_river"
 # main directory for routing hydrological model
 main_dir_routing_mac = "/path/to/SedHydro/TempSedRout"
 main_dir_routing_win = "C:/path/to/SedHydro/TempSedRout"
+main_dir_routing_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/TempSedRout"
 
 # initial model coefficients for param_dict
 coefs_path_mac = "/path/to/SedHydro/Coeffs.csv"
 coefs_path_win = "C:/path/to/SedHydro/Coeffs.csv"
-
+coefs_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/Coeffs.csv"
 
 # =========================================================
 # ========== directory for specific catchment======
@@ -99,26 +102,32 @@ river_shp_file = "shapefiles/river_network/riverNetwork_semidistributed.shp"
 # csv file of land cover classes
 landclass_directory_mac = "/path/to/SedHydro/Landcover/Landcover_classes.csv"
 landclass_directory_win = "C:/path/to/SedHydro/Landcover/Landcover_classes.csv"
+landclass_directory_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/landcover/Landcover_classes.csv"
 
 # surficial geology map directory
 geol_path_mac = "/path/to/SedHydro/Geology/surficial_geology.tif"
 geol_path_win = "C:/path/to/SedHydro/Geology/surficial_geology.tif"
+geol_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/geology/surficial_geology.tif"
 
 # csv file of geology classes
 geolclass_directory_mac = "/path/to/SedHydro/Geology-class.csv"
 geolclass_directory_win = "C:/path/to/SedHydro/Geology-class.csv"
+geolclass_directory_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/geology/Geology-class.csv"
 
 # directory for landcover data
 # --> User-defined Land Cover (from landcover 2020 class)
 landcover_path_mac = "/path/to/SedHydro/Landcover/landcover-2020-classification.tif"
 landcover_path_win = "C:/path/to/SedHydro/Landcover/landcover-2020-classification.tif"
+landcover_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/landcover/landcover-2020-classification.tif"
 
 # read soil texture data
 sand_path_mac = "/path/to/SedHydro/Soil/Sand_X0_5_cm_100m1980-2000v1.tiff"
 sand_path_win = "C:/path/to/SedHydro/Soil/Sand_X0_5_cm_100m1980-2000v1.tiff"
+sand_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/soil/Sand_X0_5_cm_100m1980-2000v1.tiff"
 
 silt_path_mac = "/path/to/SedHydro/Soil/Silt_X0_5_cm_100m1980-2000v1.tiff"
 silt_path_win = "C:/path/to/SedHydro/Soil/Silt_X0_5_cm_100m1980-2000v1.tiff"
+silt_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/soil/Silt_X0_5_cm_100m1980-2000v1.tiff"
 
 # riverbed and sediment size class files
 sediment_size_file = "sediment_size_class.csv"
@@ -126,7 +135,7 @@ sediment_size_file = "sediment_size_class.csv"
 # read directory for config file for TempSedROut as TOML
 routing_constants_toml_mac = "/path/to/SedHydro/TempSedRout/constants.toml"
 routing_constants_toml_win = "C:/path/to/SedHydro/TempSedRout/constants.toml"
-
+routing_constants_toml_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/TempSedRout/constants.toml"
 
 # =========================================================
 # ============= observed SSC timeseries directory=====
@@ -135,7 +144,7 @@ routing_constants_toml_win = "C:/path/to/SedHydro/TempSedRout/constants.toml"
 # observed SSC timeseries directory
 observed_path_mac = "/path/to/SedHydro/observations/SSC_timeseries.csv"
 observed_path_win = "C:/path/to/SedHydro/observations/SSC_timeseries.csv"
-
+observed_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/hydrology/swan_river/observations/SSC_timeseries.csv"
 
 # =========================================================
 # ============= Erosion1b model results for Erosion2=====
@@ -151,7 +160,7 @@ observed_path_win = "C:/path/to/SedHydro/observations/SSC_timeseries.csv"
 # name is: /outputs/[output_optimisation_file_name1b]
 model_parameters_final_path_mac = "/path/to/SedHydro/outputs/<run_name>/calibrated_parameters.pkl"
 model_parameters_final_path_win = "C:/path/to/SedHydro/outputs/<run_name>/calibrated_parameters.pkl"
-
+model_parameters_final_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/outputs/swan_river/calibrated_parameters.pkl"
 
 # =========================================================
 # ============= output saving directory======
@@ -160,6 +169,8 @@ model_parameters_final_path_win = "C:/path/to/SedHydro/outputs/<run_name>/calibr
 # model output saving directory
 output_dir_mac = "/path/to/SedHydro/outputs/<run_name>"
 output_dir_win = "C:/path/to/SedHydro/outputs/<run_name>"
+output_dir_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/outputs/swan_river"
+
 
 # filename to save model parameters for Erosion1b [in csv and pkl]
 output_optimisation_file_name1b = "optimised1_<run_name>"
@@ -185,6 +196,7 @@ end_date_validation   = "YYYY-MM-DD"
 # read optimised parameters file name for model validation runs
 validation_coefs_path_mac = "/path/to/SedHydro/outputs/calibrated_parameters.csv"
 validation_coefs_path_win = "C:/path/to/SedHydro/outputs/calibrated_parameters.csv"
+validation_coefs_path_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/outputs/swan_river/calibrated_parameters.csv"
 
 # filename to save model_sed [pkl] for validation
 validation_model_sed_final_pkl = "validation_model_sed_final_basin.pkl"
@@ -199,6 +211,7 @@ validation_file_name = "validation_basin_run"
 # file name for storage directory
 # storage_file_dir_mac = "/path/to/SedHydro/TempSedRout/storage_features.csv"
 # storage_file_dir_win = "C:/path/to/SedHydro/TempSedRout/storage_features.csv"
+storage_file_dir_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/TempSedRout/storage_features.csv"
 
 # if true use TempSedRout_storage if false use TempSedRout 
 use_storage = false
@@ -213,6 +226,8 @@ storage_data_type = "area"
 use_point_sources = false
 point_source_file = "/path/to/point_sources.csv"
 point_source_type = "concentration"  # "concentration" or "load"
+point_source_file_linux = "/work/comphyd_lab/users/arman.haddadchi/SedHydro/data/point_sources.csv"
+
 
 # =========================================================
 # Optimisation settings for Erosion3 / combined model

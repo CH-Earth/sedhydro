@@ -34,7 +34,12 @@ import rasterio
 # =========================================================
 # 2) CONFIG FILE
 # =========================================================
-toml_file = 'directory_settings_Athabasca_run3.toml'
+toml_file = 'directory_settings_Hay.toml'
+
+# if len(sys.argv) > 1:
+#     toml_file = sys.argv[1]
+# else:
+#     toml_file = "directory_settings_Hay.toml"
 
 # =========================================================
 # 3) SMALL SAFE HELPERS
@@ -132,7 +137,13 @@ def load_directory_settings(toml_name=toml_file):
 
 
 def get_os_suffix():
-    return "_win" if platform.system().lower().startswith("win") else "_mac"
+    system = platform.system().lower()
+    if system.startswith("win"):
+        return "_win"
+    elif system == "linux":
+        return "_linux"
+    else:
+        return "_mac"
 
 
 def get_cfg_path(cfg_section, key_base):
@@ -395,7 +406,7 @@ def main():
     # -----------------------------------------------------
     rain = forcingnc_to_dataframe(
         directory=os.path.join(catchment_path, rainfall_directory),
-        var_name="pptrate", # "pptrate" "precipitation_flux"
+        var_name="precipitation_flux", # "pptrate" "precipitation_flux"
         time_name="time",
         hru_name="hruId",
         start_date=start_date,
@@ -674,7 +685,10 @@ def main():
         early_stop_tol = erosion3_cfg.get("early_stop_tol", 1e-4)
         n_cores = erosion3_cfg.get("n_cores", None)
         chunksize = erosion3_cfg.get("chunksize", 1)
-
+        
+        slurm_cpus = os.getenv("SLURM_CPUS_PER_TASK")
+        if slurm_cpus is not None:
+            n_cores = int(slurm_cpus)
     # If routing list is empty in TOML, optimise all eligible TempSedRout parameters.
 
     # -----------------------------------------------------
