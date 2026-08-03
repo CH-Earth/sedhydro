@@ -1854,13 +1854,38 @@ def extract_flow_variable_nc(
             data_var = np.array(ds.variables[var_name][:])
 
             # Convert time
-            time_values = num2date(
-                time_var[:],
-                units=time_var.units,
-                calendar=getattr(time_var, "calendar", "standard")
-            )
-            time_values = pd.to_datetime([str(t) for t in time_values])
-
+            # time_values = num2date(
+            #     time_var[:],
+            #     units=time_var.units,
+            #     calendar=getattr(time_var, "calendar", "standard")
+            # )
+            # time_values = pd.to_datetime([str(t) for t in time_values])
+            # #------
+            raw_time = np.asarray(time_var[:])
+            time_units = str(getattr(time_var, "units", "")).strip()
+            
+            if time_units.lower().startswith("nanoseconds since"):
+                origin = time_units.split("since", 1)[1].strip()
+            
+                time_values = (
+                    pd.to_datetime(origin)
+                    + pd.to_timedelta(raw_time, unit="ns")
+                )
+            
+                # Optional: remove the tiny nanosecond offset
+                time_values = pd.DatetimeIndex(time_values).round("s")
+            
+            else:
+                decoded_time = num2date(
+                    raw_time,
+                    units=time_units,
+                    calendar=getattr(time_var, "calendar", "standard")
+                )
+            
+                time_values = pd.to_datetime(
+                    [str(t) for t in decoded_time]
+                )
+            # #------
             # Filter by date range
             time_mask = (time_values >= start_date) & (time_values <= end_date)
             if not np.any(time_mask):
@@ -2006,13 +2031,38 @@ def extract_flow_variable_nc_to_dict_by_segid(
                 )
 
             # Convert time
-            time_values = num2date(
-                time_var[:],
-                units=time_var.units,
-                calendar=getattr(time_var, "calendar", "standard")
-            )
-            time_values = pd.to_datetime([str(t) for t in time_values])
-
+            # time_values = num2date(
+            #     time_var[:],
+            #     units=time_var.units,
+            #     calendar=getattr(time_var, "calendar", "standard")
+            # )
+            # time_values = pd.to_datetime([str(t) for t in time_values])
+            # #--------
+            raw_time = np.asarray(time_var[:])
+            time_units = str(getattr(time_var, "units", "")).strip()
+            
+            if time_units.lower().startswith("nanoseconds since"):
+                origin = time_units.split("since", 1)[1].strip()
+            
+                time_values = (
+                    pd.to_datetime(origin)
+                    + pd.to_timedelta(raw_time, unit="ns")
+                )
+            
+                # Optional: remove the tiny nanosecond offset
+                time_values = pd.DatetimeIndex(time_values).round("s")
+            
+            else:
+                decoded_time = num2date(
+                    raw_time,
+                    units=time_units,
+                    calendar=getattr(time_var, "calendar", "standard")
+                )
+            
+                time_values = pd.to_datetime(
+                    [str(t) for t in decoded_time]
+                )
+            # #-------- 
             # Filter time range
             time_mask = (time_values >= start_date) & (time_values <= end_date)
             if not np.any(time_mask):
