@@ -8113,7 +8113,7 @@ def save_optimisation_results3_full(
     # =====================================================
     SSC_hru_unrouted = compute_hru_ssc_from_grids_pergridrunoff(
         model_sed=model_sed_final,
-        df_runoff=df_runoff,
+        df_runoff=df_runoff_a,
         grid_hru_col="HRU_ID",
         runoff_hru_col="hruId",
         runoff_col="averageRoutedRunoff",
@@ -9054,7 +9054,7 @@ def save_validation_results3_full(
     # =====================================================
     SSC_hru_unrouted = compute_hru_ssc_from_grids_pergridrunoff(
         model_sed=model_sed_final,
-        df_runoff=df_runoff,
+        df_runoff=df_runoff_a,
         grid_hru_col="HRU_ID",
         runoff_hru_col="hruId",
         runoff_col="averageRoutedRunoff",
