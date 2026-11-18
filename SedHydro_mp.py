@@ -4,7 +4,7 @@
 SedHydro Multiprocessing code
 ---------
 A Multi-Fraction Erosion and Sediment Transport 
-Framework with Hydrology-Model-Agnostic Coupling.
+Framework with Hydrology-Model-Agnostic Coupling. 
 
 Developed by the CAPE Team
 University of Calgary
@@ -178,6 +178,13 @@ def cfg_list_or_none(section, key):
         return None
     return list(values)
 
+# =========================================================
+# MODIFICATION: 
+# =========================================================
+def double_cell_size(cell_size):
+    return cell_size * 2
+# =========================================================
+
 
 # =========================================================
 # 4) MAIN WORKFLOW
@@ -188,11 +195,16 @@ def main():
     # -----------------------------------------------------
     # read toml file
     cfg = load_directory_settings()
-    
+       
     # 4.1a) Settings
     start_date = cfg["settings"]["start_date"]
     end_date = cfg["settings"]["end_date"]
+    
     cell_size = cfg["settings"]["cell_size"]
+    
+    # TEMPORARY MODIFICATION: DOUBLE CELL SIZE
+    cell_size = double_cell_size(cell_size)
+    
     cold_region = cfg["settings"].get("cold_region", True)
     
     # 4.1b) DIRECTORY

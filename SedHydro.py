@@ -4,7 +4,7 @@
 SedHydro
 ---------
 A Multi-Fraction Erosion and Sediment Transport 
-Framework with Hydrology-Model-Agnostic Coupling.
+Framework with Hydrology-Model-Agnostic Coupling. 
 
 Developed by the CAPE Team
 University of Calgary
@@ -96,6 +96,13 @@ def safe_chdir(path_to_use):
             f" {path_to_use}"
         )
 
+# =========================================================
+# MODIFICATION: 
+# =========================================================
+def double_cell_size(cell_size):
+    return cell_size * 2
+# =========================================================
+
 
 # =====================================================
 # READ CONFIG
@@ -113,6 +120,7 @@ start_date = cfg["settings"]["start_date"]
 end_date = cfg["settings"]["end_date"]
 
 cell_size = cfg["settings"]["cell_size"]
+cell_size = double_cell_size(cell_size)
 
 '''
 cold_region=True → applies SWE attenuation
